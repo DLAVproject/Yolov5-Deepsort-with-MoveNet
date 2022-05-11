@@ -1,7 +1,7 @@
 # yolov4-deepsort
 
 
-This repo is forked from: https://github.com/theAIGuysCode/yolov4-deepsort to customize for an own application. All credit for code goes to: https://github.com/theAIGuysCode. 
+This repo is forked from: https://github.com/theAIGuysCode/yolov4-deepsort to customize for an own application. All credit for the deep sort code goes to: https://github.com/theAIGuysCode. 
 
 Run: Object Tracking MoveNet FINAL.ipynb
 
