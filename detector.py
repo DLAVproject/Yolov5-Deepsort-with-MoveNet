@@ -151,7 +151,7 @@ class Detector(object):
                 cv2.putText(frame, class_name + "-" + str(track.track_id),(int(bbox[0]), int(bbox[1]-10)),0, 0.75, (255,255,255),2) 
                 
         try:
-            return [(bbox[0]+bbox[2])/2, (bbox[1]+bbox[3])/2], [0]
+            return [(bbox[0]+bbox[2])/2, (bbox[1]+bbox[3])/2, bbox[2]-bbox[0], bbox[3]-bbox[1]], [1]
         except:
-            return [10,50], [0] #TODO: Fix this
+            return [80,60,0,0], [0] #TODO: Fix this
 
