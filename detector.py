@@ -58,9 +58,10 @@ class Detector(object):
         self.nms_max_overlap = 1.0 # ROIs that overlap more than this values are suppressed.(non_max_suppression)
 
         #Parameters for the Tracker():
-        max_age = 500#Maximum number of missed misses before a track is deleted.
+        max_age = 500 #Maximum number of missed misses before a track is deleted.
         n_init = 10
         max_iou_distance = 0.7
+        n_frames_pose = 10 # number of frames that pose needs to be hold
 
         # initialize deep sort
         model_filename = 'model_data/mars-small128.pb'
@@ -74,11 +75,12 @@ class Detector(object):
         # more parameters...
         self.initialized = False
         self.frame_num = 0
+        self.in_frame = False
 
         self.first_pass = True
         self.pose_really_detected = False
 
-        self.pose_list = np.zeros(20,dtype=object)
+        self.pose_list = np.zeros(n_frames_pose, dtype=object)
 
         self.trigger_id = None
     
@@ -117,15 +119,13 @@ class Detector(object):
                 
             bbox = track.to_tlbr()#sometimes the bounding boxes were negative
             _, __, bbox_width, bbox_height = track.to_tlwh() #used to get the width and the height of the bbox --> compared against threshold --> neglect small bounding boxes    
-            
-            # why isn't this line used inside the next if instead? Should be faster
-            #TODO: Check out this
-            img, label = get_pose_from_image_and_bounding_box(bbox, frame, bbox_width, bbox_height, self.interpreter)
-            
+
+            #img, label = get_pose_from_image_and_bounding_box(bbox, frame, bbox_width, bbox_height, self.interpreter)
             
             if self.initialized == False:
-            #pose estimation:
-            
+                #pose estimation:
+                img, label = get_pose_from_image_and_bounding_box(bbox, frame, bbox_width, bbox_height, self.interpreter)
+
                 #img, label = get_pose_from_image_and_bounding_box(bboxes.flatten(),frame, interpreter=self.interpreter)
                 self.pose_list = np.append(self.pose_list,label)
                 self.pose_list = np.delete(self.pose_list,0) #delete the first item of the list --> keep the list short
@@ -140,18 +140,20 @@ class Detector(object):
                     self.tracker.tracks = [t for t in self.tracker.tracks if (t.track_id==self.trigger_id)]
                     self.first_pass = False 
                     self.initialized = True
-                    #cv2.destroyWindow('Pose Landmarks')
+                    cv2.destroyWindow('Pose Landmarks')
+                    
             class_name = 'human'
+            self.in_frame = False
             if track.track_id == self.trigger_id:
                 #color = colors[int(track.track_id) % len(colors)]
                 #color = [i * 255 for i in color]
-                color = 2
-                cv2.rectangle(frame, (int(bbox[0]), int(bbox[1])), (int(bbox[2]), int(bbox[3])), color, 2)
+                color = (255,0,0) #blue
+                cv2.rectangle(frame, (int(bbox[0]), int(bbox[1])), (int(bbox[2]), int(bbox[3])), color, 4)
                 cv2.rectangle(frame, (int(bbox[0]), int(bbox[1]-30)), (int(bbox[0])+(len(class_name)+len(str(track.track_id)))*17, int(bbox[1])), color, -1)
                 cv2.putText(frame, class_name + "-" + str(track.track_id),(int(bbox[0]), int(bbox[1]-10)),0, 0.75, (255,255,255),2) 
+                self.in_frame = True
                 
-        try:
-            return [(bbox[0]+bbox[2])/2, (bbox[1]+bbox[3])/2, bbox[2]-bbox[0], bbox[3]-bbox[1]], [1]
-        except:
-            return [80,60,0,0], [0] #TODO: Fix this
-
+        if self.in_frame:
+            return [(bbox[0]+bbox[2])/2, (bbox[1]+bbox[3])/2], [1]
+        else:
+            return [frame.shape[1]/2, frame.shape[0]/2], [0] #center of frame
