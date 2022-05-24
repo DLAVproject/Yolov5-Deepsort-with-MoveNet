@@ -110,7 +110,7 @@ class Detector(object):
         #call the tracker
         self.tracker.predict()
         self.tracker.update(detections)        
-        
+        self.in_frame = False
         
         # update tracks
         
@@ -147,9 +147,8 @@ class Detector(object):
                     self.tracker.tracks = [t for t in self.tracker.tracks if (t.track_id==self.trigger_id)]
                     self.first_pass = False 
                     self.initialized = True
-                    #cv2.destroyAllWindows()
+                    cv2.destroyAllWindows()
                     
-            self.in_frame = False
             if track.track_id == self.trigger_id:
                 #color = colors[int(track.track_id) % len(colors)]
                 #color = [i * 255 for i in color]
