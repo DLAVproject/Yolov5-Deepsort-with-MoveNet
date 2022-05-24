@@ -205,7 +205,8 @@ def get_pose_from_image_and_bounding_box(bbox, frame, bbox_width, bbox_height, i
     
     if len(bbox)>0 and np.all(bbox>0) and bbox_size_sufficient:#we do not want to cover the cases where we are the boundary of the image --> pose classification behaves strangely
         
-        img = frame[bbox[1]:bbox[3], bbox[0]:bbox[2]]
+        frame_copy = frame
+        img = frame_copy[bbox[1]:bbox[3], bbox[0]:bbox[2]]
         img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
         
 
@@ -236,8 +237,6 @@ def get_pose_from_image_and_bounding_box(bbox, frame, bbox_width, bbox_height, i
         if np.size(landmarks) != 0:
             img, label = classifyPose(landmarks, img, display=False)
             
-        
-        cv2.imshow('Pose Landmarks',img)
     else:
         img = frame
         label = "no bounding box detected"

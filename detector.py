@@ -44,7 +44,7 @@ class Detector(object):
         self.model = torch.hub.load('ultralytics/yolov5', 'yolov5s')  # or yolov5m, yolov5l, yolov5x, custom
         # yolov5 model settings:
         self.model.classes = [0] # only detect humans -> class = 0
-        self.model.max_det = 3
+        self.model.max_det = 6
         self.model.conf = 0.5
 
         #Pose Classification Model
@@ -53,15 +53,14 @@ class Detector(object):
 
         # tracker
         #Definition of the parameters
-        max_cosine_distance = 0.1 #The matching threshold. Samples with larger distance are considered an invalid match.
-        nn_budget = None #[int] If not None, fix samples per class to at most this number. Removes the oldest samples when the budget is reached.
+        max_cosine_distance = 0.2 #The matching threshold. Samples with larger distance are considered an invalid match.
+        nn_budget = 200 #[int] If not None, fix samples per class to at most this number. Removes the oldest samples when the budget is reached.
         self.nms_max_overlap = 1.0 # ROIs that overlap more than this values are suppressed.(non_max_suppression)
 
         #Parameters for the Tracker():
         max_age = 500 #Maximum number of missed misses before a track is deleted.
-        n_init = 10
+        n_init = 15
         max_iou_distance = 0.7
-        n_frames_pose = 10 # number of frames that pose needs to be hold
 
         # initialize deep sort
         model_filename = 'model_data/mars-small128.pb'
@@ -80,18 +79,20 @@ class Detector(object):
         self.first_pass = True
         self.pose_really_detected = False
 
-        self.pose_list = np.zeros(n_frames_pose, dtype=object)
+        self.pose_number_of_frames = 20
 
         self.trigger_id = None
+        self.pose_dict = {} # keys: track.track_id | values:np.array with poses saved --- idea: create dict with numpy arrays(key = track.track_id and add a new (key, value)-pair when a new person is detected 
+
     
     def forward(self, frame):
         
         self.frame_num += 1
         results = self.model(frame)
-        frame = results.render()[0]
+        #frame = results.render()[0]
     
         boxes, scores, names, imglist = get_bbox(results, frame)        
-        bboxes = format_boxes(boxes.transpose())# certain format of bboxes for the tracker
+        bboxes = format_boxes(boxes.transpose()) # certain format of bboxes for the tracker
         
         features = self.encoder(frame, bboxes)
         detections = [Detection(bbox, score, class_name, feature) for bbox, score, class_name, feature in zip(bboxes, scores, names, features)]
@@ -119,6 +120,7 @@ class Detector(object):
                 
             bbox = track.to_tlbr()#sometimes the bounding boxes were negative
             _, __, bbox_width, bbox_height = track.to_tlwh() #used to get the width and the height of the bbox --> compared against threshold --> neglect small bounding boxes    
+            class_name = track.get_class()   
 
             #img, label = get_pose_from_image_and_bounding_box(bbox, frame, bbox_width, bbox_height, self.interpreter)
             
@@ -126,13 +128,18 @@ class Detector(object):
                 #pose estimation:
                 img, label = get_pose_from_image_and_bounding_box(bbox, frame, bbox_width, bbox_height, self.interpreter)
 
-                #img, label = get_pose_from_image_and_bounding_box(bboxes.flatten(),frame, interpreter=self.interpreter)
-                self.pose_list = np.append(self.pose_list,label)
-                self.pose_list = np.delete(self.pose_list,0) #delete the first item of the list --> keep the list short
+                #create 1 window for each tracked person
+                window_name = 'Pose_Landmarks of person ' + str(track.track_id)
+                cv2.imshow(window_name, img)
+
+                if track.track_id not in self.pose_dict: #create a new empty (key,array) - pair in the dict
+                    self.pose_dict[track.track_id] = np.zeros(self.pose_number_of_frames, dtype=object)
             
-                if(np.all(self.pose_list == "power to the people")):
+                self.pose_dict[track.track_id] = np.append(self.pose_dict[track.track_id],label)
+                self.pose_dict[track.track_id] = np.delete(self.pose_dict[track.track_id],0) #delete the first item of the list --> keep the list short
+            
+                if(np.all(self.pose_dict[track.track_id] == "power to the people")): #if somebody holds the pose for certain frames set the boolean true
                     self.pose_really_detected = True
-                
             
                 #saving the POI ID
                 if label == 'power to the people' and self.first_pass == True and self.pose_really_detected == True:
@@ -140,9 +147,8 @@ class Detector(object):
                     self.tracker.tracks = [t for t in self.tracker.tracks if (t.track_id==self.trigger_id)]
                     self.first_pass = False 
                     self.initialized = True
-                    cv2.destroyWindow('Pose Landmarks')
+                    #cv2.destroyAllWindows()
                     
-            class_name = 'human'
             self.in_frame = False
             if track.track_id == self.trigger_id:
                 #color = colors[int(track.track_id) % len(colors)]
